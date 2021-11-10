@@ -420,6 +420,14 @@ class GANTrainer(TrainerBase):
         self.trainer_G.step()
         return loss_G
 
+    def get_3D_mask(self, classes, masks):
+        current_shape = masks[0].shape
+        mask_3D = torch.zeros(3, current_shape[0], current_shape[1])
+        for Idx in range(len(classes)):
+            class_id = classes[Idx] if classes[Idx] < 3 else 2
+            mask_3D[class_id] += masks[Idx].type(torch.DoubleTensor)
+        return mask_3D.type(torch.BoolTensor).type(torch.DoubleTensor)
+
 
     def run_step(self):
         """
@@ -437,32 +445,45 @@ class GANTrainer(TrainerBase):
         Get a 2D matrix with all the ground truth masks
         """
         self.model.eval()
-        print(data[0]['instances'])
-        print(data[0]['instances'].gt_masks.tensor.shape)
-        plt.imshow(data[0]['instances'].gt_masks.tensor[0])
-        polygons = data[0]['instances'].gt_masks.polygons[0]
-        mask = np.zeros(data[0]['instances'].image_size)
-        for polygon in polygons:
-            x_y_mask = []
-            current = []
-            for i in range(len(polygon)):
-                if i % 2 == 0:
-                    current.append(polygon[i])
-                else:
-                    current.append(polygon[i])
-                    x_y_mask.append(current)
-                    current = []
-            cv2.fillPoly(mask, np.array([x_y_mask], dtype=np.int32 ), 1)
+        batch_size = len(data)
+        mask_3D = []
+        for i in range(batch_size):
+            mask_3D.append(self.get_3D_mask(data[i]['instances'].gt_classes, data[i]['instances'].gt_masks.tensor))
+        mask_3D = torch.stack(mask_3D)
+
+        outputs = self.model(data)
+
+        prediction_3D = []
+        for i in range(batch_size):
+            prediction_3D.append(self.get_3D_mask(classes = outputs[i]['instances'].pred_classes, masks = outputs[i]['instances'].pred_masks))
+        prediction_3D = torch.stack(prediction_3D)
+
+
+
+        # classes = data[0]['instances'].gt_classes
+        # current_shape = data[0]['instances'].gt_masks.tensor.shape
+        # mask_3D = torch.zeros(3, current_shape[1], current_shape[2])
+        # for Idx in range(len(classes)):
+        #     class_id = classes[Idx] if classes[Idx] < 3 else 2
+        #     mask_3D[class_id] += data[0]['instances'].gt_masks.tensor[Idx].type(torch.DoubleTensor)
+        # mask_3D = mask_3D.type(torch.BoolTensor).type(torch.DoubleTensor)
+
+
+        # outputs = self.model(data)[0]
+        # classes = outputs['instances'].pred_classes
+        # current_shape = outputs['instances'].pred_masks[0].shape
+        # prediction_3D = torch.zeros(3, current_shape[0], current_shape[1])
+        # for Idx in range(len(classes)):
+        #     class_id = classes[Idx] if classes[Idx] < 3 else 2
+        #     prediction_3D[class_id] += outputs['instances'].pred_masks[Idx].type(torch.DoubleTensor)
+        # prediction_3D = prediction_3D.type(torch.BoolTensor).type(torch.DoubleTensor)
+
+
         
 
         """
         Get a 2D matrix with all the predicted masks
         """       
-        outputs = self.model(data)[0]
-        predicted_masks = outputs["instances"].pred_masks[0].type(torch.DoubleTensor)
-        for i in range(len(outputs["instances"].pred_masks[1:])):
-            predicted_masks += (i+1) * outputs["instances"].pred_masks[i+1].type(torch.DoubleTensor)
-        predicted_masks = predicted_masks.type(torch.BoolTensor).type(torch.DoubleTensor)
 
         #update_D(mask, )
 
