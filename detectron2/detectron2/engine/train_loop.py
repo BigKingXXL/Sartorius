@@ -444,8 +444,15 @@ class GANTrainer(TrainerBase):
         """
         Get a 2D matrix with all the ground truth masks
         """
+
         self.model.eval()
         batch_size = len(data)
+
+        images_RGB = []
+        for i in range(batch_size):
+            images_RGB.append(data[i]['image'])
+        images_RGB = torch.stack(images_RGB)
+
         mask_3D = []
         for i in range(batch_size):
             mask_3D.append(self.get_3D_mask(data[i]['instances'].gt_classes, data[i]['instances'].gt_masks.tensor))
