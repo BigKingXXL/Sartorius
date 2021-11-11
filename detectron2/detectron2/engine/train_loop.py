@@ -358,8 +358,8 @@ class GANTrainer(TrainerBase):
     """
     Modified SimpleTrainer to use detectron models as generator of a GAN.
     """
-    def __init__(self, model, data_loader, optimizer):
-    #def __init__(self, discriminator, generator, data_loader):
+    # def __init__(self, model, data_loader, optimizer):
+    def __init__(self, discriminator, generator, data_loader):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -375,17 +375,19 @@ class GANTrainer(TrainerBase):
         If you want your model (or a submodule of it) to behave
         like evaluation during training, you can overwrite its train() method.
         """
-        model.train()
-        self.model = model
-        self.optimizer = optimizer
-        self.data_loader = data_loader
-        self._data_loader_iter = iter(data_loader)
+        # model.train()
+        # self.model = model
+        # self.optimizer = optimizer
+        # self.data_loader = data_loader
+        # self._data_loader_iter = iter(data_loader)
 
-        # self.generator = generator
-        # self.discriminator = discriminator
-        # self.loss = torch.nn.BCEWithLogitsLoss(reduction='sum')
-        # self.trainer_D = torch.optim.Adam(self.discriminator.parameters(), lr=0.05)
-        # self.trainer_G = torch.optim.Adam(self.generator.parameters(), lr=0.005)
+        generator.train()
+        # discriminator.train()
+        self.generator = generator
+        self.discriminator = discriminator
+        self.loss = torch.nn.BCEWithLogitsLoss(reduction='sum')
+        self.trainer_D = torch.optim.Adam(self.discriminator.parameters(), lr=0.05)
+        self.trainer_G = torch.optim.Adam(self.generator.parameters(), lr=0.005)
 
     def update_D(self, real_mask, real_img):
         """Update discriminator."""

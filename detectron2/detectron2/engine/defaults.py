@@ -361,7 +361,7 @@ class DefaultTrainer(TrainerBase):
         cfg (CfgNode):
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, discriminator):
         """
         Args:
             cfg (CfgNode):
@@ -383,7 +383,7 @@ class DefaultTrainer(TrainerBase):
         # self._trainer = (AMPTrainer if cfg.SOLVER.AMP.ENABLED else SimpleTrainer)(
         #     model, data_loader, optimizer
         # )
-        self._trainer = GANTrainer(model, data_loader, optimizer)
+        self._trainer = GANTrainer(discriminator, model, data_loader)
 
         print("Trainer: ")
         print(self._trainer)
