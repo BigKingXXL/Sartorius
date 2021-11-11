@@ -358,7 +358,7 @@ class GANTrainer(TrainerBase):
     """
     Modified SimpleTrainer to use detectron models as generator of a GAN.
     """
-    # def __init__(self, model, data_loader, optimizer):
+    #def __init__(self, model, data_loader, optimizer):
     def __init__(self, discriminator, generator, data_loader):
         """
         Args:
@@ -433,7 +433,7 @@ class GANTrainer(TrainerBase):
         """
         Implement the standard training logic described above.
         """
-        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
+        assert self.generator.training, "[SimpleTrainer] model was changed to eval mode!"
         start = time.perf_counter()
         """
         If you want to do something with the data, you can wrap the dataloader.
@@ -445,25 +445,32 @@ class GANTrainer(TrainerBase):
         Get a 2D matrix with all the ground truth masks
         """
 
-        self.model.eval()
+        self.generator.eval()
         batch_size = len(data)
 
         images_RGB = []
         for i in range(batch_size):
-            images_RGB.append(data[i]['image'])
+            image = data[i]['image'].type(torch.FloatTensor)
+            rescaled_image = torch.nn.functional.interpolate(image.view([-1]+list(image.shape)), [520, 704], mode='bilinear')[0]
+            images_RGB.append(rescaled_image)
         images_RGB = torch.stack(images_RGB)
 
         mask_3D = []
         for i in range(batch_size):
-            mask_3D.append(self.get_3D_mask(data[i]['instances'].gt_classes, data[i]['instances'].gt_masks.tensor))
+            mask = self.get_3D_mask(data[i]['instances'].gt_classes, data[i]['instances'].gt_masks.tensor)
+            rescaled_mask = torch.nn.functional.interpolate(mask.view([-1]+list(mask.shape)), [520, 704], mode='bilinear')[0]
+            mask_3D.append(rescaled_mask)
         mask_3D = torch.stack(mask_3D)
 
-        outputs = self.model(data)
+        outputs = self.generator(data)
 
         prediction_3D = []
         for i in range(batch_size):
             prediction_3D.append(self.get_3D_mask(classes = outputs[i]['instances'].pred_classes, masks = outputs[i]['instances'].pred_masks))
         prediction_3D = torch.stack(prediction_3D)
+
+        real_d_input = torch.cat([images_RGB,mask_3D], 1)
+        fake_d_input = torch.cat([images_RGB,prediction_3D], 1)
 
 
 
