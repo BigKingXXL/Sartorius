@@ -123,6 +123,9 @@ class TrainerBase:
         """
         hooks = [h for h in hooks if h is not None]
         for h in hooks:
+            print(h)
+            print(type(h))
+            print(isinstance(h, HookBase))
             assert isinstance(h, HookBase)
             # To avoid circular reference, hooks and trainer cannot own each other.
             # This normally does not matter, but will cause memory leak if the
@@ -359,7 +362,7 @@ class GANTrainer(TrainerBase):
     Modified SimpleTrainer to use detectron models as generator of a GAN.
     """
     # def __init__(self, model, data_loader, optimizer):
-    def __init__(self, discriminator, generator, data_loader):
+    def __init__(self, discriminator: torch.nn.Module, generator: torch.nn.Module, data_loader):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -389,36 +392,38 @@ class GANTrainer(TrainerBase):
         self.trainer_D = torch.optim.Adam(self.discriminator.parameters(), lr=0.05)
         self.trainer_G = torch.optim.Adam(self.generator.parameters(), lr=0.005)
 
-    def update_D(self, real_mask, real_img):
-        """Update discriminator."""
-        batch_size = real_mask.shape[0]
-        ones = torch.ones((batch_size,), device=real_mask.device)
-        zeros = torch.zeros((batch_size,), device=real_mask.device)
-        self.trainer_D.zero_grad()
-        real_Y = self.discriminator(real_mask)
-        fake_mask = self.generator(real_img)
-        # Do not need to compute gradient for `generator`, detach it from
-        # computing gradients.
-        fake_Y = self.discriminator(fake_mask.detach())
-        loss_D = (self.loss(real_Y, ones.reshape(real_Y.shape)) +
-                self.loss(fake_Y, zeros.reshape(fake_Y.shape))) / 2
-        loss_D.backward()
-        self.trainer_D.step()
-        return loss_D
+    # def update_D(self, real_input, fake_input):
+    #     """Update discriminator."""
+    #     batch_size = real_input.shape[0]
+    #     ones = torch.ones((batch_size,), device=real_input.device)
+    #     zeros = torch.zeros((batch_size,), device=real_input.device)
+    #     self.trainer_D.zero_grad()
+    #     real_output = self.discriminator(real_input)
+    #     # Do not need to compute gradient for `generator`, detach it from
+    #     # computing gradients.
+    #     fake_output = self.discriminator(fake_input.detach())
+    #     loss_D = (self.loss(real_output, ones.reshape(real_output.shape)) +
+    #             self.loss(fake_output, zeros.reshape(fake_output.shape))) / 2
+    #     loss_D.backward()
+    #     self.trainer_D.step()
+    #     return loss_D
 
-    def update_G(self, real_img):
-        """Update generator."""
-        batch_size = real_img.shape[0]
-        ones = torch.ones((batch_size,), device=real_img.device)
-        self.trainer_G.zero_grad()
-        # We could reuse `fake_X` from `update_D` to save computation
-        fake_mask = self.generator(real_img)
-        # Recomputing `fake_Y` is needed since `discriminator` is changed
-        fake_Y = self.discriminator(fake_mask)
-        loss_G = self.loss(fake_Y, ones.reshape(fake_Y.shape))
-        loss_G.backward()
-        self.trainer_G.step()
-        return loss_G
+    # def update_G(self, real_img, batch_size):
+    #     """Update generator."""
+    #     ones = torch.ones((batch_size,), device=real_img.device)
+    #     self.trainer_G.zero_grad()
+    #     # We could reuse `fake_X` from `update_D` to save computation
+    #     outputs = self.generator(real_img)
+    #     # Recomputing `fake_Y` is needed since `discriminator` is changed
+    #     prediction_3D = []
+    #     for i in range(batch_size):
+    #         prediction_3D.append(self.get_3D_mask(classes = outputs[i]['instances'].pred_classes, masks = outputs[i]['instances'].pred_masks))
+    #     prediction_3D = torch.stack(prediction_3D)
+    #     fake_Y = self.discriminator(prediction_3D)
+    #     loss_G = self.loss(fake_Y, ones.reshape(fake_Y.shape))
+    #     loss_G.backward()
+    #     self.trainer_G.step()
+    #     return loss_G
 
     def get_3D_mask(self, classes, masks):
         current_shape = masks[0].shape
@@ -472,6 +477,45 @@ class GANTrainer(TrainerBase):
         real_d_input = torch.cat([images_RGB,mask_3D], 1)
         fake_d_input = torch.cat([images_RGB,prediction_3D], 1)
 
+        ############################################################
+        #                   TRAIN DESCRIMINATOR                    #
+        ############################################################
+        ones = torch.ones((batch_size,), device=real_d_input.device)
+        zeros = torch.zeros((batch_size,), device=real_d_input.device)
+        self.trainer_D.zero_grad()
+        real_output = self.discriminator(real_d_input)
+        # Do not need to compute gradient for `generator`, detach it from
+        # computing gradients.
+        fake_output = self.discriminator(fake_d_input.detach())
+        loss_D = (self.loss(real_output, ones.reshape(real_output.shape)) +
+                self.loss(fake_output, zeros.reshape(fake_output.shape))) / 2
+        loss_D.backward()
+        self.trainer_D.step()
+        
+        ############################################################
+        #                     TRAIN GENERATOR                      #
+        ############################################################
+        """Update generator."""
+        ones = torch.ones((batch_size,), device=real_d_input.device) # we use real_d_input as `data` is not a Tensor
+        self.trainer_G.zero_grad()
+        # We could reuse `fake_X` from `update_D` to save computation
+        outputs = self.generator(data)
+
+        prediction_3D = []
+        for i in range(batch_size):
+            prediction_3D.append(self.get_3D_mask(classes = outputs[i]['instances'].pred_classes, masks = outputs[i]['instances'].pred_masks))
+        prediction_3D = torch.stack(prediction_3D)
+
+        fake_d_input = torch.cat([images_RGB,prediction_3D], 1)
+
+        # Recomputing `fake_Y` is needed since `discriminator` is changed
+        self.disableDiscrimantorTraining()
+        fake_Y = self.discriminator(fake_d_input)
+        loss_G = self.loss(fake_Y, ones.reshape(fake_Y.shape))
+        loss_G.backward()
+        self.enableDiscriminatorTraining()
+        self.trainer_G.step()
+
         """
         Get a 2D matrix with all the predicted masks
         """       
@@ -503,6 +547,14 @@ class GANTrainer(TrainerBase):
         suboptimal as explained in https://arxiv.org/abs/2006.15704 Sec 3.2.4
         """
         self.optimizer.step()
+
+    def disableDiscrimantorTraining(self):
+        for param in self.discriminator.parameters():
+            param.requires_grad = False
+
+    def enableDiscriminatorTraining(self):
+        for param in self.discriminator.parameters():
+            param.requires_grad = True
 
     def _write_metrics(
         self,
