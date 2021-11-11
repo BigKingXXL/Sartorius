@@ -433,7 +433,7 @@ class GANTrainer(TrainerBase):
         """
         Implement the standard training logic described above.
         """
-        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
+        assert self.generator.training, "[SimpleTrainer] model was changed to eval mode!"
         start = time.perf_counter()
         """
         If you want to do something with the data, you can wrap the dataloader.
@@ -445,48 +445,32 @@ class GANTrainer(TrainerBase):
         Get a 2D matrix with all the ground truth masks
         """
 
-        self.model.eval()
+        self.generator.eval()
         batch_size = len(data)
 
         images_RGB = []
         for i in range(batch_size):
-            images_RGB.append(data[i]['image'])
+            image = data[i]['image'].type(torch.FloatTensor)
+            rescaled_image = torch.nn.functional.interpolate(image.view([-1]+list(image.shape)), [520, 704], mode='bilinear')[0]
+            images_RGB.append(rescaled_image)
         images_RGB = torch.stack(images_RGB)
 
         mask_3D = []
         for i in range(batch_size):
-            mask_3D.append(self.get_3D_mask(data[i]['instances'].gt_classes, data[i]['instances'].gt_masks.tensor))
+            mask = self.get_3D_mask(data[i]['instances'].gt_classes, data[i]['instances'].gt_masks.tensor)
+            rescaled_mask = torch.nn.functional.interpolate(mask.view([-1]+list(mask.shape)), [520, 704], mode='bilinear')[0]
+            mask_3D.append(rescaled_mask)
         mask_3D = torch.stack(mask_3D)
 
-        outputs = self.model(data)
+        outputs = self.generator(data)
 
         prediction_3D = []
         for i in range(batch_size):
             prediction_3D.append(self.get_3D_mask(classes = outputs[i]['instances'].pred_classes, masks = outputs[i]['instances'].pred_masks))
         prediction_3D = torch.stack(prediction_3D)
 
-
-
-        # classes = data[0]['instances'].gt_classes
-        # current_shape = data[0]['instances'].gt_masks.tensor.shape
-        # mask_3D = torch.zeros(3, current_shape[1], current_shape[2])
-        # for Idx in range(len(classes)):
-        #     class_id = classes[Idx] if classes[Idx] < 3 else 2
-        #     mask_3D[class_id] += data[0]['instances'].gt_masks.tensor[Idx].type(torch.DoubleTensor)
-        # mask_3D = mask_3D.type(torch.BoolTensor).type(torch.DoubleTensor)
-
-
-        # outputs = self.model(data)[0]
-        # classes = outputs['instances'].pred_classes
-        # current_shape = outputs['instances'].pred_masks[0].shape
-        # prediction_3D = torch.zeros(3, current_shape[0], current_shape[1])
-        # for Idx in range(len(classes)):
-        #     class_id = classes[Idx] if classes[Idx] < 3 else 2
-        #     prediction_3D[class_id] += outputs['instances'].pred_masks[Idx].type(torch.DoubleTensor)
-        # prediction_3D = prediction_3D.type(torch.BoolTensor).type(torch.DoubleTensor)
-
-
-        
+        real_d_input = torch.cat([images_RGB,mask_3D], 1)
+        fake_d_input = torch.cat([images_RGB,prediction_3D], 1)
 
         """
         Get a 2D matrix with all the predicted masks
