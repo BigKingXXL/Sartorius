@@ -455,7 +455,7 @@ class GANTrainer(TrainerBase):
 
         images_RGB = []
         for i in range(batch_size):
-            image = data[i]['image'].type(torch.FloatTensor)
+            image = data[i]['image'].type(torch.DoubleTensor)
             rescaled_image = torch.nn.functional.interpolate(image.view([-1]+list(image.shape)), [520, 704], mode='bilinear')[0]
             images_RGB.append(rescaled_image)
         images_RGB = torch.stack(images_RGB)
