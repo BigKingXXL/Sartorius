@@ -5,6 +5,7 @@ from bigkingxxl.dataset.dataset import SartoriusDataset
 from torch.optim import Adam
 from torch.nn import BCELoss
 import logging
+import torch
 
 def main():
     # define generator and discriminator
@@ -33,6 +34,7 @@ def main():
     trainer.setTrainingData(train_dataset)
     trainer.setTestData(test_dataset)
     trainer.train(1)
+    torch.save(generator.state_dict(), os.path.join(root_dir, "best_metric_model.pth"))
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
