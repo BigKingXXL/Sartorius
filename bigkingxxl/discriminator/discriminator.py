@@ -5,7 +5,7 @@ from typing import Tuple
 
 # angelehnt an https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/361f8b00d671b66db752e66493b630be8bc7d67b/models/networks.py#L538
 class Discriminator(nn.Module):
-    def __init__(self, sizes = (6, 520, 704)) -> None:
+    def __init__(self, sizes = (4, 512, 704)) -> None:
         super(Discriminator, self).__init__()
         self.net = self.build_net(sizes)
     
@@ -28,6 +28,7 @@ class Discriminator(nn.Module):
         
         # Reduce to one dimension and apply sigmoid
         layers.append(nn.Conv2d(currentDimensions, 1, kernel_size=1, padding=0, stride=1))
+        layers.append(nn.Sigmoid())
         
         # Map list to a 
         return nn.Sequential(*layers)

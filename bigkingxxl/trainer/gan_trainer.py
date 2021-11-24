@@ -47,8 +47,8 @@ class GanTrainer(Trainer):
             info(f'training epoch {epoch}')
             for inputImage, maskImage in self.train_dataloader:
 
-                inputImage = inputImage.reshape(1,1,520,704).float()
-                maskImage = maskImage.reshape(1,520,704,3).float()
+                inputImage = inputImage[:512,:].reshape(1,1,512,704).float()
+                maskImage = maskImage[:512,:,:].reshape(1,512,704,3).float()
 
                 with self.__generatorFreezer:
                     # Train discriminator with generator
@@ -57,7 +57,7 @@ class GanTrainer(Trainer):
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, predictedMask))
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
-                    self.__discriminatorOptimizer.step(loss)
+                    self.__discriminatorOptimizer.step()
 
                     # Train discriminator with labels
                     self.__discriminatorOptimizer.zero_grad()
@@ -65,7 +65,7 @@ class GanTrainer(Trainer):
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, maskImage))
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.ones_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
-                    self.__discriminatorOptimizer.step(loss)
+                    self.__discriminatorOptimizer.step()
                 
                 with self.__discriminatorFreezer:
                     # Train generator
@@ -74,10 +74,10 @@ class GanTrainer(Trainer):
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, predictedMask))
                     loss = self.__generatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
-                    self.__generatorOptimizer.step(loss)
+                    self.__generatorOptimizer.step()
                 
     def __addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        return torch.cat(image, mask.reshape(1,3,520,704), dim=1)
+        return torch.cat((image, mask.reshape(1,3,512,704)), dim=1)
 
     def __freezeDiscriminator(self):
         return 

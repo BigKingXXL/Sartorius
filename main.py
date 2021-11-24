@@ -9,8 +9,8 @@ import logging
 def main():
     # define generator and discriminator
     #generator = UNETR(in_channels=1, out_channels=1, img_size=(520, 704), spatial_dims=2)
-    generator = UNETR(in_channels=1, out_channels=1, img_size=(520, 704), spatial_dims=2)
-    discriminator = Discriminator((520, 704, 3))
+    generator = UNETR(in_channels=1, out_channels=3, img_size=(512, 704), spatial_dims=2)
+    discriminator = Discriminator((4, 512, 704))
     # define optimizers
     generator_optim = Adam(generator.parameters(), lr=0.0001)
     discriminator_optim = Adam(discriminator.parameters(), lr=0.0001)
