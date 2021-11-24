@@ -14,7 +14,7 @@ class SartoriusDataset(Dataset):
     def __len__(self) -> int:
         return len(self.__ids)
 
-    def __getitem__(self, idx) -> tuple[Tensor, Tensor]:
+    def __getitem__(self, idx):
         selected = self.__ids[idx]
         image = cv2.imread(os.path.join(self.__img_dir, selected + '.png'), cv2.COLOR_BGR2GRAY)
         image_tensor = from_numpy(image)

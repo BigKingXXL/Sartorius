@@ -46,8 +46,10 @@ class GanTrainer(Trainer):
         for epoch in range(1, epochs + 1):
             info(f'training epoch {epoch}')
             for inputImage, maskImage in self.train_dataloader:
-                print(inputImage)
-                print(maskImage)
+
+                inputImage = inputImage.reshape(1,1,520,704).float()
+                maskImage = maskImage.reshape(1,520,704,3).float()
+
                 with self.__generatorFreezer:
                     # Train discriminator with generator
                     self.__discriminatorOptimizer.zero_grad()
@@ -75,7 +77,7 @@ class GanTrainer(Trainer):
                     self.__generatorOptimizer.step(loss)
                 
     def __addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        return torch.cat(image, mask, dim=1)
+        return torch.cat(image, mask.reshape(1,3,520,704), dim=1)
 
     def __freezeDiscriminator(self):
         return 
