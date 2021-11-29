@@ -1,8 +1,12 @@
+import numpy as np
+from torch._C import device
 import torch.nn as nn
 import torch.optim as optim
 import torch
 from typing import Any, Callable
 from logging import info
+from sklearn.metrics import jaccard_score
+from torch.utils.tensorboard import SummaryWriter
 
 from bigkingxxl.trainer.trainer import Trainer
 
@@ -28,7 +32,8 @@ class GanTrainer(Trainer):
         generatorOptimizer: Callable[[nn.Module], optim.Optimizer],
         discriminatorOptimizer: Callable[[nn.Module], optim.Optimizer],
         generatorLoss: Any, # Pytorch loss functions have no supertype
-        discriminatorLoss: Any
+        discriminatorLoss: Any,
+        device: str = 'cpu'
     ) -> None:
         super(GanTrainer).__init__()
         self.__generator = generator
@@ -39,16 +44,25 @@ class GanTrainer(Trainer):
         self.__discriminatorLoss = discriminatorLoss
         self.__discriminatorFreezer = self.ModelFreezer(discriminator)
         self.__generatorFreezer = self.ModelFreezer(generator)
+        self.__device = device
+        self.__tensorboard_writer = SummaryWriter()
 
     def train(self, epochs = 10):
         super(GanTrainer, self).hasTrainDataloader()
         info('starting training process')
+        self.__generator.train()
+        self.__discriminator.train()
+
+        step = 0
+
         for epoch in range(1, epochs + 1):
             info(f'training epoch {epoch}')
             for inputImage, maskImage in self.train_dataloader:
-
-                inputImage = inputImage.reshape(1,1,520,704).float()
-                maskImage = maskImage.reshape(1,520,704,3).float()
+                step += 1
+                inputImage.to(self.__device)
+                maskImage.to(self.__device)
+                inputImage = inputImage.reshape(-1,1,520,704).float()
+                maskImage = maskImage.reshape(-1,520,704,3).float()
 
                 with self.__generatorFreezer:
                     # Train discriminator with generator
@@ -58,6 +72,7 @@ class GanTrainer(Trainer):
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
                     self.__discriminatorOptimizer.step(loss)
+                    self.__tensorboard_writer.add_scalar('Discriminator/Loss/Train/Real', loss, step)
 
                     # Train discriminator with labels
                     self.__discriminatorOptimizer.zero_grad()
@@ -66,18 +81,41 @@ class GanTrainer(Trainer):
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.ones_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
                     self.__discriminatorOptimizer.step(loss)
+                    self.__tensorboard_writer.add_scalar('Discriminator/Loss/Train/Generated', loss, step)
                 
                 with self.__discriminatorFreezer:
                     # Train generator
                     self.__generatorOptimizer.zero_grad()
                     predictedMask = self.__generator(inputImage)
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, predictedMask))
-                    loss = self.__generatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
+                    loss = self.__discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
                     self.__generatorOptimizer.step(loss)
-                
+                    loss = self.__generatorLoss(predictedMask, maskImage)
+                    self.__tensorboard_writer.add_scalar('Generator/Loss/Train', loss, step)
+            self.__tensorboard_writer.add_text("Training", f"Epoch {epoch} finished after {step} mini batches", epoch)
+
+            with torch.no_grad():
+                self.__generator.eval()
+                self.__discriminator.eval()
+                test_losses = []
+                test_scores = []
+                for inputImage, maskImage in self.test_dataloader:
+                    inputImage.to(self.__device)
+                    maskImage.to(self.__device)
+                    inputImage = inputImage.reshape(-1,1,520,704).float()
+                    maskImage = maskImage.reshape(-1,520,704,3).float()
+                    predictedMask = self.__generator(inputImage)
+                    score = jaccard_score(maskImage, predictedMask)
+                    loss = self.__generatorLoss(predictedMask, maskImage)
+                    test_losses.append(loss)
+                    test_scores.append(score)
+                self.__tensorboard_writer.add_scalar('Generator/Jaccard/Test', np.mean(score), epoch)
+                self.__tensorboard_writer.add_scalar('Generator/Loss/Test', np.mean(test_losses), epoch)
+
+
     def __addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        return torch.cat(image, mask.reshape(1,3,520,704), dim=1)
+        return torch.cat(image, mask.reshape(-1,3,520,704), dim=1).to(device=self.__device)
 
     def __freezeDiscriminator(self):
         return 

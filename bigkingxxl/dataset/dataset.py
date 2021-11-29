@@ -18,7 +18,6 @@ class SartoriusDataset(Dataset):
         selected = self.__ids[idx]
         image = cv2.imread(os.path.join(self.__img_dir, selected + '.png'), cv2.COLOR_BGR2GRAY)
         image_tensor = from_numpy(image)
-        print(image_tensor.shape)
         with open(os.path.join(self.__masks_dir, selected + '.pickle'), 'rb') as read_file_handle:
             mask = pickle_load(read_file_handle)
         return image_tensor, mask
