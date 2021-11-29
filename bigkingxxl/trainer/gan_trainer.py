@@ -7,6 +7,8 @@ from typing import Any, Callable
 from logging import info
 from sklearn.metrics import jaccard_score
 from torch.utils.tensorboard import SummaryWriter
+import os
+import datetime
 
 from bigkingxxl.trainer.trainer import Trainer
 
@@ -46,6 +48,7 @@ class GanTrainer(Trainer):
         self.__generatorFreezer = self.ModelFreezer(generator)
         self.__device = device
         self.__tensorboard_writer = SummaryWriter()
+        self.__model_dir = f'models/{datetime.datetime.now()}'
 
     def train(self, epochs = 10):
         super(GanTrainer, self).hasTrainDataloader()
@@ -61,8 +64,8 @@ class GanTrainer(Trainer):
                 step += 1
                 inputImage.to(self.__device)
                 maskImage.to(self.__device)
-                inputImage = inputImage[:512,:].reshape(-1,1,512,704).float()
-                maskImage = maskImage[:512,:,:].reshape(-1,512,704,3).float()
+                inputImage = inputImage[:, :512, :].reshape(-1, 1, 512, 704).float()
+                maskImage = maskImage[:, :, :512,:].reshape(-1, 3, 512, 704).float()
 
                 with self.__generatorFreezer:
                     # Train discriminator with generator
@@ -93,6 +96,9 @@ class GanTrainer(Trainer):
                     self.__generatorOptimizer.step()
                     loss = self.__generatorLoss(predictedMask, maskImage)
                     self.__tensorboard_writer.add_scalar('Generator/Loss/Train', loss, step)
+
+            torch.save(self.__generator.state_dict(), os.path.join(self.__model_dir, f"epoch_{epoch}_generator.pth"))
+            torch.save(self.__discriminator.state_dict(), os.path.join(self.__model_dir, f"epoch_{epoch}_discriminator.pth"))
             self.__tensorboard_writer.add_text("Training", f"Epoch {epoch} finished after {step} mini batches", epoch)
 
             with torch.no_grad():
@@ -103,8 +109,8 @@ class GanTrainer(Trainer):
                 for inputImage, maskImage in self.test_dataloader:
                     inputImage.to(self.__device)
                     maskImage.to(self.__device)
-                    inputImage = inputImage.reshape(-1,1,520,704).float()
-                    maskImage = maskImage.reshape(-1,520,704,3).float()
+                    inputImage = inputImage[:, :512, :].reshape(-1, 1, 520, 704).float()
+                    maskImage = maskImage[:, :, :512,:].reshape(-1, 3, 520, 704).float()
                     predictedMask = self.__generator(inputImage)
                     score = jaccard_score(maskImage, predictedMask)
                     loss = self.__generatorLoss(predictedMask, maskImage)
@@ -115,10 +121,7 @@ class GanTrainer(Trainer):
 
 
     def __addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        return torch.cat(image, mask.reshape(-1,3,512,704), dim=1).to(device=self.__device)
-
-    def __freezeDiscriminator(self):
-        return 
+        return torch.cat((image, mask.reshape(-1,3,512,704)), dim=1).to(device=self.__device)
 
     def test(self):
         raise NotImplementedError

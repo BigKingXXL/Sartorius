@@ -1,5 +1,6 @@
 from monai.networks.nets.unetr import UNETR
 from bigkingxxl.discriminator.discriminator import Discriminator
+from bigkingxxl.loss.IoULoss import IoULoss
 from bigkingxxl.trainer.gan_trainer import GanTrainer
 from bigkingxxl.dataset.dataset import SartoriusDataset
 from torch.optim import Adam
@@ -19,7 +20,7 @@ def main(device: str = DEVICE):
     generator_optim = Adam(generator.parameters(), lr=0.0001)
     discriminator_optim = Adam(discriminator.parameters(), lr=0.0001)
     # define losses
-    generator_loss = BCELoss()
+    generator_loss = IoULoss()
     discriminator_loss = BCELoss()
     # define training data
     train_dataset = SartoriusDataset(dataset_path = './dataset', mode = 'train')
@@ -33,14 +34,13 @@ def main(device: str = DEVICE):
         discriminator,
         generator_optim,
         discriminator_optim,
-        generator_loss,
-        discriminator_loss,
-        device
+        generatorLoss = generator_loss,
+        discriminatorLoss = discriminator_loss,
+        device = device
     )
     trainer.setTrainingData(train_dataloader)
     trainer.setTestData(test_dataloader)
     trainer.train(1)
-    torch.save(generator.state_dict(), os.path.join(root_dir, "best_metric_model.pth"))
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
