@@ -61,8 +61,8 @@ class GanTrainer(Trainer):
                 step += 1
                 inputImage.to(self.__device)
                 maskImage.to(self.__device)
-                inputImage = inputImage.reshape(-1,1,520,704).float()
-                maskImage = maskImage.reshape(-1,520,704,3).float()
+                inputImage = inputImage[:512,:].reshape(-1,1,512,704).float()
+                maskImage = maskImage[:512,:,:].reshape(-1,512,704,3).float()
 
                 with self.__generatorFreezer:
                     # Train discriminator with generator
@@ -71,7 +71,7 @@ class GanTrainer(Trainer):
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, predictedMask))
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
-                    self.__discriminatorOptimizer.step(loss)
+                    self.__discriminatorOptimizer.step()
                     self.__tensorboard_writer.add_scalar('Discriminator/Loss/Train/Real', loss, step)
 
                     # Train discriminator with labels
@@ -80,7 +80,7 @@ class GanTrainer(Trainer):
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, maskImage))
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.ones_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
-                    self.__discriminatorOptimizer.step(loss)
+                    self.__discriminatorOptimizer.step()
                     self.__tensorboard_writer.add_scalar('Discriminator/Loss/Train/Generated', loss, step)
                 
                 with self.__discriminatorFreezer:
@@ -90,7 +90,7 @@ class GanTrainer(Trainer):
                     discriminatorOutput = self.__discriminator(self.__addMask(inputImage, predictedMask))
                     loss = self.__discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
                     loss.backward()
-                    self.__generatorOptimizer.step(loss)
+                    self.__generatorOptimizer.step()
                     loss = self.__generatorLoss(predictedMask, maskImage)
                     self.__tensorboard_writer.add_scalar('Generator/Loss/Train', loss, step)
             self.__tensorboard_writer.add_text("Training", f"Epoch {epoch} finished after {step} mini batches", epoch)
@@ -115,7 +115,7 @@ class GanTrainer(Trainer):
 
 
     def __addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        return torch.cat(image, mask.reshape(-1,3,520,704), dim=1).to(device=self.__device)
+        return torch.cat(image, mask.reshape(-1,3,512,704), dim=1).to(device=self.__device)
 
     def __freezeDiscriminator(self):
         return 
