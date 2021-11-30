@@ -28,11 +28,12 @@ def convert_to_masks(path):
             cells[cell_type].append(cell_array)
         
 
-        result_tensor = torch.empty((3, 520, 704,))
+        result_tensor = torch.zeros((3, 520, 704,))
         for cell_index, cell_type in enumerate(cells):
 
             if not cell_type in cells:
-                result_tensor[cell_index, :, :,].fill_(0)
+                print("Filling")
+                # result_tensor[cell_index, :, :,].fill_(0)
                 continue
 
             mask_arrays = cells[cell_type]
@@ -44,12 +45,14 @@ def convert_to_masks(path):
             
             # REMOVE OVERLAP
             # TODO: MAKE ME FANCY
-            sum_mask = np.where(sum_mask <= 1, sum_mask, 0)
+            sum_mask = np.where((sum_mask <= 1) & (sum_mask >= 0), sum_mask, 0)
             result_tensor[cell_index, :, :,] = torch.from_numpy(sum_mask).view(size=(520, 704,))
 
+        if result_tensor.isnan().any():
+            input("Failure")
+
         os.makedirs(os.path.join('./dataset', 'masks'), exist_ok=True)
-        with open(os.path.join('./dataset', 'masks', f'{picture_id}.pickle'), 'wb') as write_file_handle:
-            pickle.dump(result_tensor, write_file_handle)
+        torch.save(result_tensor, os.path.join('./dataset', 'masks', f'{picture_id}.tensor'))
 
 if __name__ == '__main__':
     convert_to_masks('./dataset/train.csv')

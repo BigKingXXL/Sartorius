@@ -15,7 +15,7 @@ class Discriminator(nn.Module):
         currentWidth = sizes[1]
         currentHeight = sizes[2]
         
-        while currentHeight != 1 and currentWidth != 1:
+        while currentHeight >= 32 and currentWidth >= 32:
             layers += [
                 nn.Conv2d(currentDimensions, 2*currentDimensions, stride=2, padding=1, kernel_size=4),
                 nn.LeakyReLU(0.2, True)
@@ -27,7 +27,10 @@ class Discriminator(nn.Module):
             currentWidth = max(1, math.floor(currentWidth / 2))
         
         # Reduce to one dimension and apply sigmoid
-        layers.append(nn.Conv2d(currentDimensions, 1, kernel_size=1, padding=0, stride=1))
+        # layers.append(nn.Conv2d(currentDimensions, 1, kernel_size=1, padding=0, stride=1))
+
+        layers.append(nn.Flatten())
+        layers.append(nn.Linear(currentDimensions * currentHeight * currentWidth, 1))
         layers.append(nn.Sigmoid())
         
         # Map list to a 
