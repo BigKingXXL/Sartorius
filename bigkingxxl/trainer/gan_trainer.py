@@ -65,29 +65,29 @@ class GanTrainer(Trainer):
             for inputImage, maskImage in self.train_dataloader:
                 print(step)
                 
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
                 step += 1
                 inputImage = inputImage[:, :512, :].reshape(-1, 1, 512, 704).float().to(self.device)
                 maskImage = maskImage[:, :, :512,:].reshape(-1, 3, 512, 704).float().to(self.device)
 
-                with self.generatorFreezer:
-                    # Train discriminator with generator
-                    self.discriminatorOptimizer.zero_grad()
-                    predictedMask = self.generator(inputImage)
-                    discriminatorOutput = self.discriminator(self.addMask(inputImage, predictedMask))
-                    loss = self.discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
-                    loss.backward()
-                    self.discriminatorOptimizer.step()
-                    self.tensorboard_writer.add_scalar('Discriminator/Loss/Train/Real', loss.to('cpu'), step)
+                # with self.generatorFreezer:
+                #     # Train discriminator with generator
+                #     self.discriminatorOptimizer.zero_grad()
+                #     predictedMask = self.generator(inputImage)
+                #     discriminatorOutput = self.discriminator(self.addMask(inputImage, predictedMask))
+                #     loss = self.discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
+                #     loss.backward()
+                #     self.discriminatorOptimizer.step()
+                #     self.tensorboard_writer.add_scalar('Discriminator/Loss/Train/Real', loss.to('cpu'), step)
 
-                    # Train discriminator with labels
-                    self.discriminatorOptimizer.zero_grad()
-                    predictedMask = self.generator(inputImage)
-                    discriminatorOutput = self.discriminator(self.addMask(inputImage, maskImage))
-                    loss = self.discriminatorLoss(discriminatorOutput, torch.ones_like(discriminatorOutput, device = discriminatorOutput.device))
-                    loss.backward()
-                    self.discriminatorOptimizer.step()
-                    self.tensorboard_writer.add_scalar('Discriminator/Loss/Train/Generated', loss.to('cpu'), step)
+                #     # Train discriminator with labels
+                #     self.discriminatorOptimizer.zero_grad()
+                #     predictedMask = self.generator(inputImage)
+                #     discriminatorOutput = self.discriminator(self.addMask(inputImage, maskImage))
+                #     loss = self.discriminatorLoss(discriminatorOutput, torch.ones_like(discriminatorOutput, device = discriminatorOutput.device))
+                #     loss.backward()
+                #     self.discriminatorOptimizer.step()
+                #     self.tensorboard_writer.add_scalar('Discriminator/Loss/Train/Generated', loss.to('cpu'), step)
                 
                 with self.discriminatorFreezer:
                     # Train generator

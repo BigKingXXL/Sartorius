@@ -7,8 +7,9 @@ import torch.nn as nn
 from torch import sigmoid
 
 class IoULoss(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None, size_average=True, exp=1) -> None:
         super(IoULoss, self).__init__()
+        self.exp = exp
 
     def forward(self, inputs, targets, smooth=1):
         
@@ -27,4 +28,8 @@ class IoULoss(nn.Module):
         
         IoU = (intersection + smooth)/(union + smooth)
                 
-        return 1 - IoU
+        return 1 - (IoU**self.exp)
+
+class IoULoss2(IoULoss):
+    def __init__(self, weight=None, size_average=True) -> None:
+        super(IoULoss2, self).__init__(exp=2)
