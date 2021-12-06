@@ -1,4 +1,4 @@
-_base_ = '../mmdetection/configs/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco.py'
+_base_ = '../mmdetection/configs/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_1x_coco.py'
 num_classes = 3
 # model settings
 model = dict(
