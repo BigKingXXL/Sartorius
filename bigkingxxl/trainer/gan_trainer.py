@@ -1,136 +1,129 @@
-import numpy as np
-from torch._C import device
+from argparse import ArgumentParser
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch.nn as nn
-import torch.optim as optim
+import torch.nn.functional as F
 import torch
-from typing import Any, Callable
-from logging import info
-from sklearn.metrics import jaccard_score
-from torch.utils.tensorboard import SummaryWriter
-import os
-import datetime
-import re
+from typing import Optional
+from bigkingxxl.evaluator.evalutator import iou_map, label_instances
 
 from bigkingxxl.trainer.trainer import Trainer
 
 REAL_LABEL = 1
 FAKE_LABEL = 0
 
-class GanTrainer(Trainer):
-    class ModelFreezer():
-        def __init__(self, model: nn.Module) -> None:
-            self.__model = model
-        
-        def __enter__(self):
-            for param in self.__model.parameters():
-                param.requires_grad = False
-        
-        def __exit__(self, type, value, traceback):
-            for param in self.__model.parameters():
-                param.requires_grad = True
-
+class GanTrainer(LightningModule):
     def __init__(self,
         generator: nn.Module,
         discriminator: nn.Module,
-        generatorOptimizer: Callable[[nn.Module], optim.Optimizer],
-        discriminatorOptimizer: Callable[[nn.Module], optim.Optimizer],
-        generatorLoss: Any, # Pytorch loss functions have no supertype
-        discriminatorLoss: Any,
-        device: str = 'cpu'
+        lr: float,
+        b1: float,
+        b2: float,
+        threshold: float,
+        channels: int = 3,
+        width: int = 520,
+        height: int = 704,
     ) -> None:
-        super(GanTrainer).__init__()
+        super().__init__()
+        self.save_hyperparameters(ignore=["generator", "discriminator", "width", "height"])
+        data_shape = (channels, width, height)
         self.generator = generator
         self.discriminator = discriminator
-        self.generatorOptimizer = generatorOptimizer
-        self.discriminatorOptimizer = discriminatorOptimizer
-        self.generatorLoss = generatorLoss
-        self.discriminatorLoss = discriminatorLoss
-        self.discriminatorFreezer = self.ModelFreezer(discriminator)
-        self.generatorFreezer = self.ModelFreezer(generator)
-        self.device = device
-        self.tensorboard_writer = SummaryWriter()
-        self.model_dir = re.sub(r'[\ \-\.\:]', '_', f'models/{datetime.datetime.now()}')
-        os.makedirs(self.model_dir, exist_ok=True)
+        # self.model_dir = re.sub(r'[\ \-\.\:]', '_', f'models/{datetime.datetime.now()}')
+        # os.makedirs(self.model_dir, exist_ok=True)
 
-    def train(self, epochs = 10):
-        super(GanTrainer, self).hasTrainDataloader()
-        info('starting training process')
-        self.generator.train()
-        self.discriminator.train()
+    @staticmethod
+    def add_model_specific_args(parent_parser: ArgumentParser):
+        parser = parent_parser.add_argument_group("GanModel")
+        parser.add_argument("--lr", type=float, default=0.0001)
+        parser.add_argument("--b1", type=float, default=0.9)
+        parser.add_argument("--b2", type=float, default=0.999)
+        parser.add_argument("--threshold", type=float, default=0.4)
+        return parent_parser
 
-        step = 0
+    def adverserial_loss(self, y, y_hat):
+        return F.binary_cross_entropy(y, y_hat)
 
-        for epoch in range(1, epochs + 1):
-            info(f'training epoch {epoch}')
-            for inputImage, maskImage in self.train_dataloader:
-                print(step)
-                
-                # torch.cuda.empty_cache()
-                step += 1
-                inputImage = inputImage[:, :512, :].reshape(-1, 1, 512, 704).float().to(self.device)
-                maskImage = maskImage[:, :, :512,:].reshape(-1, 3, 512, 704).float().to(self.device)
+    def forward(self, X):
+        return self.generator(X)
+    
+    def binarize_mask(self, mask: torch.Tensor) -> torch.Tensor:
+        threshold = self.hparams.threshold
+        (mask > threshold).type_as(mask)
 
-                # with self.generatorFreezer:
-                #     # Train discriminator with generator
-                #     self.discriminatorOptimizer.zero_grad()
-                #     predictedMask = self.generator(inputImage)
-                #     discriminatorOutput = self.discriminator(self.addMask(inputImage, predictedMask))
-                #     loss = self.discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
-                #     loss.backward()
-                #     self.discriminatorOptimizer.step()
-                #     self.tensorboard_writer.add_scalar('Discriminator/Loss/Train/Real', loss.to('cpu'), step)
+    def training_step(self, batch, batch_idx, optimizer_idx):
+        imgs, real_masks = batch
 
-                #     # Train discriminator with labels
-                #     self.discriminatorOptimizer.zero_grad()
-                #     predictedMask = self.generator(inputImage)
-                #     discriminatorOutput = self.discriminator(self.addMask(inputImage, maskImage))
-                #     loss = self.discriminatorLoss(discriminatorOutput, torch.ones_like(discriminatorOutput, device = discriminatorOutput.device))
-                #     loss.backward()
-                #     self.discriminatorOptimizer.step()
-                #     self.tensorboard_writer.add_scalar('Discriminator/Loss/Train/Generated', loss.to('cpu'), step)
-                
-                with self.discriminatorFreezer:
-                    # Train generator
-                    self.generatorOptimizer.zero_grad()
-                    predictedMask = self.generator(inputImage)
-                    #discriminatorOutput = self.discriminator(self.addMask(inputImage, predictedMask))
-                    #loss = self.discriminatorLoss(discriminatorOutput, torch.zeros_like(discriminatorOutput, device = discriminatorOutput.device))
-                    #loss.backward()
-                    #self.generatorOptimizer.step()
-                    loss = self.generatorLoss(predictedMask, maskImage)
-                    loss.backward()
-                    self.generatorOptimizer.step()
-                    self.tensorboard_writer.add_scalar('Generator/Loss/Train', loss.to('cpu'), step)
+        fake = torch.ones(imgs.size(0), FAKE_LABEL)
+        fake = fake.type_as(imgs)
 
-            torch.save(self.generator.state_dict(), os.path.join(self.model_dir, f"epoch_{epoch}_generator.pth"))
-            torch.save(self.discriminator.state_dict(), os.path.join(self.model_dir, f"epoch_{epoch}_discriminator.pth"))
-            self.tensorboard_writer.add_text("Training", f"Epoch {epoch} finished after {step} mini batches", epoch)
+        valid = torch.ones(imgs.size(0), REAL_LABEL)
+        valid = valid.type_as(imgs)
 
-            with torch.no_grad():
-                self.generator.eval()
-                self.discriminator.eval()
-                test_losses = []
-                test_scores = []
-                for inputImage, maskImage in self.test_dataloader:
-                    inputImage = inputImage[:, :512, :].reshape(-1, 1, 512, 704).float().to(self.device)
-                    maskImage = maskImage[:, :, :512,:].reshape(-1, 3, 512, 704).float().to(self.device)
-                    predictedMask = self.generator(inputImage)
-                    score = jaccard_score(maskImage.cpu().detach().numpy().reshape(-1), self.to_binary(predictedMask.cpu().detach()).numpy().reshape(-1))
-                    loss = self.generatorLoss(predictedMask, maskImage)
-                    test_losses.append(loss.cpu())
-                    test_scores.append(score)
-                self.tensorboard_writer.add_scalar('Generator/Jaccard/Test', np.mean(score), epoch)
-                self.tensorboard_writer.add_scalar('Generator/Loss/Test', np.mean(test_losses), epoch)
+        # Train generator
+        if optimizer_idx == 0:
+            generated_masks = self.generator(imgs)
+            binary_generated_mask = self.binarize_mask(generated_masks)
+            generator_loss = self.adverserial_loss(self.discriminator(self(self.addMask(imgs, binary_generated_mask))), fake)
+            tqdm_dict = {"g_loss": generator_loss}
+            output = {"loss": generator_loss, "progress_bar": tqdm_dict, "log": tqdm_dict}
+            return output
 
+        # Train discriminators
+        if optimizer_idx == 1:
+            generated_masks = self.generator(imgs)
+            binary_generated_mask = self.binarize_mask(generated_masks)
+            discriminator_loss_fake = self.adverserial_loss(self.discriminator(self(self.addMask(imgs, binary_generated_mask))), fake)
+            discriminator_loss_real = self.adverserial_loss(self.discriminator(self(self.addMask(imgs, real_masks))), valid)
+            discriminator_loss = (discriminator_loss_fake + discriminator_loss_real) / 2
+            tqdm_dict = {"d_loss": discriminator_loss}
+            output = {"loss": discriminator_loss, "progress_bar": tqdm_dict, "log": tqdm_dict}
+            return output
+
+    def configure_optimizers(self):
+        lr = self.hparams.lr
+        b1 = self.hparams.b1
+        b2 = self.hparams.b2
+
+        optimizer_generator = torch.optim.Adam(self.generator.parameters(), lr=lr, betas=(b1, b2))
+        optimizer_discriminator = torch.optim.Adam(self.discriminator.parameters(), lr=lr, betas=(b1, b2))
+        return [ optimizer_generator, optimizer_discriminator ], []
+    
+    def validation_step(self, batch) -> Optional[STEP_OUTPUT]:
+        imgs, real_masks = batch
+        generated_masks = self.generator(imgs)
+        binary_generated_masks = self.binarize_mask(generated_masks)
+        generated_instances = label_instances(binary_generated_masks)
+        combined_instance_masks = self.combine_instances(generated_instances, generated_masks)
+        iou_score = iou_map(combined_instance_masks, real_masks)
+        self.log_dict({'val_iou': iou_score})
+    
+    def combine_instances(self, instance_masks: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
+        """Combines a batch of instances of different cell-types into one layer of instances.
+        Removes overlaps by using the highest logit found in the logits tensor.
+
+        Args:
+            instance_masks (torch.Tensor): Tensor of size (batch size, number of cell-types, width, height) with numbered instances in each layer.
+            logits (torch.Tensor): Tensor of size (batch size, number of cell-types, width, height) with logits.
+
+        Returns:
+            torch.Tensor: Tensor of size (batch size, width, height) with numbered instances.
+        """
+        masked_logits = logits
+        combined_instances = torch.zeros((instance_masks.size(0), instance_masks.size(2), instance_masks.size(3)))
+        for batch in range(instance_masks.size(0)):
+            layer_numbers = [0] + [int(instance_masks[batch, layer, :, :].max()) for layer in instance_masks.size(1)][:-1]
+            for x in range(instance_masks.size(2)):
+                for y in range(instance_masks.size(3)):
+                    max_layer = 0
+                    max_value = masked_logits[batch, 0, x, y] if masked_logits[batch, 0, x, y] > self.hparams.threshold else 0
+                    for layer in range(1, instance_masks.size(1)):
+                        if masked_logits[batch, layer, x, y] > max_value and masked_logits[batch, layer, x, y] > self.hparams.threshold:
+                            max_layer = layer
+                            max_value = masked_logits[batch, layer, x, y]
+                    combined_instances[batch, x, y] = 0 if max_value == 0 else instance_masks[batch, max_layer, x, y] + layer_numbers[max_layer]
+        return combined_instances
 
     def addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        return torch.cat((image, mask.reshape(-1,3,512,704)), dim=1).to(device=self.device)
+        return torch.cat((image, mask.reshape(-1,3,512,704)), dim=1).type_as(image)
 
-    def test(self):
-        raise NotImplementedError
-
-    def validate(self):
-        raise NotImplementedError
-
-    def to_binary(self, tensor: torch.Tensor, threshold = 0.5) -> torch.Tensor:
-        return (tensor > threshold).float()

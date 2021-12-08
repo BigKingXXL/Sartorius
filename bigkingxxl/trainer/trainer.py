@@ -1,4 +1,5 @@
 from torch.utils.data import DataLoader
+from pytorch_lightning import LightningModule
 import warnings
 from bigkingxxl.error.missing_property_error import MissingPropertyError
 
