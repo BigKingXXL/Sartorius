@@ -6,12 +6,13 @@ LICENSE: Apache 2
 from enum import unique
 import numpy as np
 import cv2
+from scipy.ndimage.measurements import label
 
 def label_instances(input: np.ndarray) -> np.ndarray:
     result = np.zeros_like(input)
     for batch in range(input.shape[0]):
         for layer in range(input.shape[1]):
-            _, result[batch, layer, :, :] = cv2.connectedComponents(input[batch, layer, :, :].reshape((input.shape[2], input.shape[3])).astype(np.int8), connectivity=8)
+            result[batch, layer, :, :], _ = label(input[batch, layer, :, :].reshape((input.shape[2], input.shape[3])).astype(np.int8))
     return result
 
 def compute_iou(labels, y_pred):
