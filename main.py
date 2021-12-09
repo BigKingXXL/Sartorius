@@ -2,8 +2,6 @@ from bigkingxxl.dataloader.dataloader import SartoriusDataLoader
 from monai.networks.nets.unetr import UNETR
 from bigkingxxl.discriminator.discriminator import Discriminator
 from bigkingxxl.trainer.gan_trainer import GanTrainer
-from bigkingxxl.dataset.dataset import SartoriusDataset
-from torch.utils.data import DataLoader
 from pytorch_lightning import Trainer
 from argparse import ArgumentParser
 
@@ -21,7 +19,7 @@ def main():
         **dict_args
     )
     datamodule = SartoriusDataLoader()
-    trainer = Trainer(gpus=0, fast_dev_run=True)
+    trainer = Trainer(fast_dev_run=False)
     trainer.fit(gan, datamodule=datamodule)
 
 if __name__ == '__main__':

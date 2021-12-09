@@ -6,14 +6,12 @@ LICENSE: Apache 2
 from enum import unique
 import numpy as np
 import cv2
-from torch import Tensor
-import torch
 
-def label_instances(input: Tensor) -> Tensor:
-    result = torch.zeros_like(input)
-    for batch in range(input.size(0)):
-        for layer in range(input.size(1)):
-            _, result[batch, layer, :, :] = cv2.connectedComponents(input[batch, layer, :, :], connectivity=8)
+def label_instances(input: np.ndarray) -> np.ndarray:
+    result = np.zeros_like(input)
+    for batch in range(input.shape[0]):
+        for layer in range(input.shape[1]):
+            _, result[batch, layer, :, :] = cv2.connectedComponents(input[batch, layer, :, :].reshape((input.shape[2], input.shape[3])).astype(np.int8), connectivity=8)
     return result
 
 def compute_iou(labels, y_pred):

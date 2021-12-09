@@ -1,4 +1,6 @@
 from argparse import ArgumentParser
+from logging import log
+import numpy as np
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch.nn as nn
@@ -49,34 +51,35 @@ class GanTrainer(LightningModule):
     
     def binarize_mask(self, mask: torch.Tensor) -> torch.Tensor:
         threshold = self.hparams.threshold
-        (mask > threshold).type_as(mask)
+        return (mask > threshold).type_as(mask)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         imgs, real_masks = batch
 
-        fake = torch.ones(imgs.size(0), FAKE_LABEL)
+        fake = torch.empty((imgs.size(0), 1)).fill_(FAKE_LABEL)
         fake = fake.type_as(imgs)
 
-        valid = torch.ones(imgs.size(0), REAL_LABEL)
+        valid = torch.empty((imgs.size(0), 1)).fill_(REAL_LABEL)
         valid = valid.type_as(imgs)
 
         # Train generator
         if optimizer_idx == 0:
             generated_masks = self.generator(imgs)
-            binary_generated_mask = self.binarize_mask(generated_masks)
-            generator_loss = self.adverserial_loss(self.discriminator(self(self.addMask(imgs, binary_generated_mask))), fake)
-            tqdm_dict = {"g_loss": generator_loss}
+            binary_generated_mask = generated_masks # self.binarize_mask(generated_masks)
+            discriminator_output = self.discriminator(self.addMask(imgs, binary_generated_mask))
+            generator_loss = self.adverserial_loss(discriminator_output, fake)
+            tqdm_dict = {"g_loss": float(generator_loss)}
             output = {"loss": generator_loss, "progress_bar": tqdm_dict, "log": tqdm_dict}
             return output
 
         # Train discriminators
         if optimizer_idx == 1:
             generated_masks = self.generator(imgs)
-            binary_generated_mask = self.binarize_mask(generated_masks)
-            discriminator_loss_fake = self.adverserial_loss(self.discriminator(self(self.addMask(imgs, binary_generated_mask))), fake)
-            discriminator_loss_real = self.adverserial_loss(self.discriminator(self(self.addMask(imgs, real_masks))), valid)
+            binary_generated_mask = generated_masks # self.binarize_mask(generated_masks)
+            discriminator_loss_fake = self.adverserial_loss(self.discriminator(self.addMask(imgs, binary_generated_mask)), fake)
+            discriminator_loss_real = self.adverserial_loss(self.discriminator(self.addMask(imgs, real_masks)), valid)
             discriminator_loss = (discriminator_loss_fake + discriminator_loss_real) / 2
-            tqdm_dict = {"d_loss": discriminator_loss}
+            tqdm_dict = {"d_loss": float(discriminator_loss)}
             output = {"loss": discriminator_loss, "progress_bar": tqdm_dict, "log": tqdm_dict}
             return output
 
@@ -89,16 +92,16 @@ class GanTrainer(LightningModule):
         optimizer_discriminator = torch.optim.Adam(self.discriminator.parameters(), lr=lr, betas=(b1, b2))
         return [ optimizer_generator, optimizer_discriminator ], []
     
-    def validation_step(self, batch) -> Optional[STEP_OUTPUT]:
+    def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
         imgs, real_masks = batch
         generated_masks = self.generator(imgs)
-        binary_generated_masks = self.binarize_mask(generated_masks)
+        binary_generated_masks = self.binarize_mask(generated_masks).numpy()
         generated_instances = label_instances(binary_generated_masks)
         combined_instance_masks = self.combine_instances(generated_instances, generated_masks)
-        iou_score = iou_map(combined_instance_masks, real_masks)
+        iou_score = iou_map(list(combined_instance_masks), list(real_masks.numpy()))
         self.log_dict({'val_iou': iou_score})
     
-    def combine_instances(self, instance_masks: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
+    def combine_instances(self, instance_masks: np.ndarray, logits: np.ndarray) -> torch.Tensor:
         """Combines a batch of instances of different cell-types into one layer of instances.
         Removes overlaps by using the highest logit found in the logits tensor.
 
@@ -110,14 +113,14 @@ class GanTrainer(LightningModule):
             torch.Tensor: Tensor of size (batch size, width, height) with numbered instances.
         """
         masked_logits = logits
-        combined_instances = torch.zeros((instance_masks.size(0), instance_masks.size(2), instance_masks.size(3)))
-        for batch in range(instance_masks.size(0)):
-            layer_numbers = [0] + [int(instance_masks[batch, layer, :, :].max()) for layer in instance_masks.size(1)][:-1]
-            for x in range(instance_masks.size(2)):
-                for y in range(instance_masks.size(3)):
+        combined_instances = np.zeros((instance_masks.shape[0], instance_masks.shape[2], instance_masks.shape[3]))
+        for batch in range(instance_masks.shape[0]):
+            layer_numbers = [0] + [int(instance_masks[batch, layer, :, :].max()) for layer in range(instance_masks.shape[1])][:-1]
+            for x in range(instance_masks.shape[2]):
+                for y in range(instance_masks.shape[3]):
                     max_layer = 0
                     max_value = masked_logits[batch, 0, x, y] if masked_logits[batch, 0, x, y] > self.hparams.threshold else 0
-                    for layer in range(1, instance_masks.size(1)):
+                    for layer in range(1, instance_masks.shape[1]):
                         if masked_logits[batch, layer, x, y] > max_value and masked_logits[batch, layer, x, y] > self.hparams.threshold:
                             max_layer = layer
                             max_value = masked_logits[batch, layer, x, y]

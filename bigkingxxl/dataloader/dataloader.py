@@ -18,10 +18,10 @@ class SartoriusDataLoader(LightningDataModule):
             self.test_dataset = SartoriusDataset(mode='val')
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.train_dataset, batch_size=1)
+        return DataLoader(self.train_dataset, batch_size=1, num_workers=8)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        return DataLoader(self.val_dataset, batch_size=1)
+        return DataLoader(self.val_dataset, batch_size=1, num_workers=8)
     
     def test_dataloader(self) -> EVAL_DATALOADERS:
-        return DataLoader(self.test_dataset, batch_size=1)
+        return DataLoader(self.test_dataset, batch_size=1, num_workers=8)
