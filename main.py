@@ -21,7 +21,7 @@ def main():
         **dict_args
     )
     datamodule = SartoriusDataLoader()
-    trainer = Trainer(gpus=1, check_val_every_n_epoch=5, callbacks=[checkpoint_callback], log_every_n_steps=10, fast_dev_run=True)
+    trainer = Trainer(gpus=1, check_val_every_n_epoch=1, callbacks=[checkpoint_callback], log_every_n_steps=10)
     trainer.fit(gan, datamodule=datamodule)
 
 if __name__ == '__main__':

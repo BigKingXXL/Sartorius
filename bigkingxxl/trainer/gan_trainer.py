@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import time
 from logging import log
 import numpy as np
+from numpy.core.fromnumeric import argmax
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch.nn as nn
@@ -33,6 +34,7 @@ class GanTrainer(LightningModule):
         data_shape = (channels, width, height)
         self.generator = generator
         self.discriminator = discriminator
+        self.loss = nn.BCEWithLogitsLoss()
         # self.model_dir = re.sub(r'[\ \-\.\:]', '_', f'models/{datetime.datetime.now()}')
         # os.makedirs(self.model_dir, exist_ok=True)
 
@@ -46,7 +48,7 @@ class GanTrainer(LightningModule):
         return parent_parser
 
     def adverserial_loss(self, y, y_hat):
-        return F.binary_cross_entropy(y, y_hat)
+        return self.loss(y, y_hat)
 
     def forward(self, X):
         return self.generator(X)
@@ -69,7 +71,7 @@ class GanTrainer(LightningModule):
             generated_masks = self.generator(imgs)
             binary_generated_mask = generated_masks # self.binarize_mask(generated_masks)
             discriminator_output = self.discriminator(self.addMask(imgs, binary_generated_mask))
-            generator_loss = self.adverserial_loss(discriminator_output, fake)
+            generator_loss = self.adverserial_loss(discriminator_output, valid)
             tqdm_dict = {"g_loss": float(generator_loss)}
             self.log_dict(tqdm_dict, prog_bar=True)
             output = {"loss": generator_loss}
@@ -98,24 +100,14 @@ class GanTrainer(LightningModule):
     
     def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
         imgs, real_masks = batch
-        current_t = time.time()
         generated_masks = self.generator(imgs)
-        print(f"generating mask: {time.time()-current_t}")
-        current_t = time.time()
         binary_generated_masks = self.binarize_mask(generated_masks).cpu().numpy()
-        print(f"binary mask: {time.time()-current_t}")
-        current_t = time.time()
         generated_instances = label_instances(binary_generated_masks)
-        print(f"label mask: {time.time()-current_t}")
-        current_t = time.time()
         combined_instance_masks = self.combine_instances(generated_instances, generated_masks)
-        print(f"combine mask: {time.time()-current_t}")
-        current_t = time.time()
         iou_score = iou_map(list(combined_instance_masks), list(real_masks.cpu().numpy()))
-        print(f"iou score: {time.time()-current_t}")
         self.log_dict({'val_iou': iou_score}, prog_bar=True)
     
-    def combine_instances(self, instance_masks: np.ndarray, logits: np.ndarray) -> torch.Tensor:
+    def combine_instances(self, instance_masks: np.ndarray, logits: torch.Tensor) -> np.ndarray:
         """Combines a batch of instances of different cell-types into one layer of instances.
         Removes overlaps by using the highest logit found in the logits tensor.
 
@@ -126,21 +118,16 @@ class GanTrainer(LightningModule):
         Returns:
             torch.Tensor: Tensor of size (batch size, width, height) with numbered instances.
         """
-        masked_logits = logits
         combined_instances = np.zeros((instance_masks.shape[0], instance_masks.shape[2], instance_masks.shape[3]))
-        for batch in range(instance_masks.shape[0]):
-            max_instance_label_per_layer = [0] + [int(instance_masks[batch, layer, :, :].max()) for layer in range(instance_masks.shape[1])][:-1]
-            for index in range(1, len(max_instance_label_per_layer)):
-                max_instance_label_per_layer[index] += max_instance_label_per_layer[index - 1]
-            for x in range(instance_masks.shape[2]):
-                for y in range(instance_masks.shape[3]):
-                    max_layer = 0
-                    max_value = masked_logits[batch, 0, x, y]
-                    for layer in range(1, instance_masks.shape[1]):
-                        if masked_logits[batch, layer, x, y] > max_value:
-                            max_layer = layer
-                            max_value = masked_logits[batch, layer, x, y]
-                    combined_instances[batch, x, y] = instance_masks[batch, max_layer, x, y] + max_instance_label_per_layer[max_layer]
+        for batch_index, batch in enumerate(instance_masks):
+            max_layers = [0] + [int(batch[layer, :, :].max()) for layer in range(batch.shape[0])][:-1]    
+            for index in range(1, len(max_layers)):
+                max_layers[index] += max_layers[index - 1]
+                instance_masks[batch_index][index] += max_layers[index]
+
+        for batch_index, batch in enumerate(logits):
+            maximum = torch.argmax(batch, dim=0).cpu().numpy()
+            combined_instances[batch_index] = np.take_along_axis(instance_masks[batch_index], np.array([maximum]), axis=0)
         return combined_instances
 
     def addMask(self, image: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
