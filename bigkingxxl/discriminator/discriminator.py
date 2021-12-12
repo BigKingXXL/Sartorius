@@ -31,7 +31,7 @@ class Discriminator(nn.Module):
 
         layers.append(nn.Flatten())
         layers.append(nn.Linear(currentDimensions * currentHeight * currentWidth, 1))
-        layers.append(nn.Sigmoid())
+        # layers.append(nn.Sigmoid())
         
         # Map list to a 
         return nn.Sequential(*layers)

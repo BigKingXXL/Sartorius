@@ -12,7 +12,6 @@ def main():
     print("loading model")
     model = init_detector(args.config, args.checkpoint, device='cuda:0')
     test = 'dataset/test/*'
-    train = 'dataset/train/*'
     print(glob.glob(test))
     results = (test, inference_detector(model, glob.glob(test)))
     print("Writing out")
