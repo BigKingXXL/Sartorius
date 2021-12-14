@@ -1,8 +1,13 @@
+from glob import glob
 import pandas as pd
 import numpy as np
 import pickle
 import torch
 import os
+import tiffile
+from PIL import Image
+import logging
+
 
 cell_types = ['astro', 'cort', 'shsy5y']
 
@@ -71,8 +76,27 @@ def convert_to_val_masks(path):
 
         result_tensor = torch.from_numpy(cell_array.reshape(520, 704))
         os.makedirs(os.path.join('./dataset', 'masks', 'val'), exist_ok=True)
+        os.makedirs(os.path.join('./dataset', 'masks', 'tif'), exist_ok=True)
         torch.save(result_tensor, os.path.join('./dataset', 'masks', 'val' , f'{picture_id}.tensor'))
+        tiffile.imsave(os.path.join('./dataset', 'masks', 'tif', f'{picture_id}.tif'), result_tensor.numpy().astype(np.uint8))
+        # print(result_tensor.numpy().astype(np.uint8).max())
+
+def convert_png_images_to_tiff(path: str, subfolder: str) -> None:
+    basepath = os.path.join('./dataset', 'tif', subfolder)
+    os.makedirs(basepath, exist_ok=True)
+    for file in glob(os.path.join(f"{path}", "*.png")):
+        img = Image.open(file)
+        picture_id = file.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        tiffile.imsave(os.path.join(basepath, f'{picture_id}.tif'), np.array(img))
+        img.close()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    logging.info("converting masks to seperated layers")
     convert_to_masks('./dataset/train.csv')
+    logging.info("converting masks to one layers")
     convert_to_val_masks('./dataset/train.csv')
+    logging.info("converting input images to tif")
+    convert_png_images_to_tiff('./dataset/train', 'train')
+    convert_png_images_to_tiff('./dataset/test', 'test')
+    logging.info("done")
