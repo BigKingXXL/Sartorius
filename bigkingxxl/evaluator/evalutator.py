@@ -3,16 +3,17 @@ https://www.kaggle.com/theoviel/competition-metric-map-iou/notebook
 LICENSE: Apache 2
 """
 
-from enum import unique
 import numpy as np
-import cv2
+from scipy.ndimage.measurements import label
 
 def label_instances(input: np.ndarray) -> np.ndarray:
-    result = np.zeros_like(input)
-    for batch in range(input.shape[0]):
-        for layer in range(input.shape[1]):
-            _, result[batch, layer, :, :] = cv2.connectedComponents(input[batch, layer, :, :].reshape((input.shape[2], input.shape[3])).astype(np.int8), connectivity=8)
-    return result
+    input_short = input
+    if len(input.shape) > 3:
+        input_short = input.reshape(-1, input.shape[2], input.shape[3])
+    result = np.zeros_like(input_short)
+    for layer in range(input_short.shape[0]):
+        result[layer, :, :], _ = label(input_short[layer, :, :].reshape((input_short.shape[1], input_short.shape[2])).astype(np.int8))
+    return result.reshape(input.shape)
 
 def compute_iou(labels, y_pred):
     """
@@ -88,8 +89,6 @@ def iou_map(truths, preds, verbose=0):
 
 
     ious = [compute_iou(truth, pred) for truth, pred in zip(truths, preds)]
-    
-    print(ious[0].shape)
 
     if verbose:
         print("Thresh\tTP\tFP\tFN\tPrec.")

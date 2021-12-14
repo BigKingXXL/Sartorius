@@ -46,7 +46,7 @@ def convert_to_masks(path):
             # REMOVE OVERLAP
             # TODO: MAKE ME FANCY
             sum_mask = np.where((sum_mask <= 1) & (sum_mask >= 0), sum_mask, 0)
-            result_tensor[cell_index, :, :,] = torch.from_numpy(sum_mask).reshape((704, 520,)).t()
+            result_tensor[cell_index, :, :,] = torch.from_numpy(sum_mask).reshape((520, 704,))
 
         if result_tensor.isnan().any():
             input("Failure")
@@ -69,7 +69,7 @@ def convert_to_val_masks(path):
             for index in range(0, len(annotation), 2):
                 cell_array[annotation[index] - 1:annotation[index]+annotation[index+1] - 2].fill(cell_index + 1)
 
-        result_tensor = torch.from_numpy(cell_array.reshape(704, 520).transpose())
+        result_tensor = torch.from_numpy(cell_array.reshape(520, 704))
         os.makedirs(os.path.join('./dataset', 'masks', 'val'), exist_ok=True)
         torch.save(result_tensor, os.path.join('./dataset', 'masks', 'val' , f'{picture_id}.tensor'))
 

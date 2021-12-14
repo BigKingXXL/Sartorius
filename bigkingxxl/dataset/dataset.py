@@ -16,7 +16,7 @@ class SartoriusDataset(Dataset):
         if mode == 'train':
             self.ids = self.ids[:int(trainsplit*len(self.ids))]
         elif mode == 'val':
-            self.ids = self.ids[int((1-trainsplit)*len(self.ids)):]
+            self.ids = self.ids[int(trainsplit*len(self.ids)):]
         else:
             raise Exception("Unknown mode")
 
