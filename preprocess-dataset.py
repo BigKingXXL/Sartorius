@@ -20,8 +20,8 @@ def convert_to_masks(path):
         picture_id = picture_group.iloc[0]['id']
         picture_size = picture_group.iloc[0]['width'] * picture_group.iloc[0]['height']
 
+        cell_array = np.zeros(picture_size, dtype=np.int8)
         for index, cell in picture_group.iterrows():
-            cell_array = np.zeros(picture_size, dtype=np.int8)
             annotation = [int(val) for val in cell['annotation'].split(' ')]
             cell_type = cell['cell_type']
 
@@ -68,17 +68,17 @@ def convert_to_val_masks(path):
         picture_id = picture_group.iloc[0]['id']
         picture_size = picture_group.iloc[0]['width'] * picture_group.iloc[0]['height']
 
+        cell_array = np.zeros(picture_size, dtype=int)
         for cell_index, (_, cell) in enumerate(picture_group.iterrows()):
-            cell_array = np.zeros(picture_size, dtype=int)
             annotation = [int(val) for val in cell['annotation'].split(' ')]
             for index in range(0, len(annotation), 2):
                 cell_array[annotation[index] - 1:annotation[index]+annotation[index+1] - 2].fill(cell_index + 1)
 
         result_tensor = torch.from_numpy(cell_array.reshape(520, 704))
         os.makedirs(os.path.join('./dataset', 'masks', 'val'), exist_ok=True)
-        os.makedirs(os.path.join('./dataset', 'masks', 'tif'), exist_ok=True)
+        os.makedirs(os.path.join('./dataset', 'tif', 'train'), exist_ok=True)
         torch.save(result_tensor, os.path.join('./dataset', 'masks', 'val' , f'{picture_id}.tensor'))
-        tiffile.imsave(os.path.join('./dataset', 'masks', 'tif', f'{picture_id}.tif'), result_tensor.numpy().astype(np.uint8))
+        tiffile.imsave(os.path.join('./dataset', 'tif', 'train', f'{picture_id}_masks.tif'), result_tensor.numpy().astype(np.uint8))
         # print(result_tensor.numpy().astype(np.uint8).max())
 
 def convert_png_images_to_tiff(path: str, subfolder: str) -> None:
