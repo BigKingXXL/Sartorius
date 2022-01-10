@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 import time
 from logging import log
-import numpy as np
 from numpy.core.fromnumeric import argmax
 from pytorch_lightning import LightningModule, LightningDataModule
 from pytorch_lightning.utilities.types import STEP_OUTPUT
@@ -10,7 +9,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from typing import Optional
-from skimage.color import gray2rgb
+
+from bigkingxxl.utils.cupy_tensor import tensorToCupy, cupyToTensor
+
+if torch.cuda.is_available():
+    import cupy as np
+    from cucim.skimage.color import gray2rgb
+else:
+    import numpy as np
+    from skimage.color import gray2rgb
 
 from torch.utils.data.dataloader import DataLoader
 from bigkingxxl.evaluator.evalutator import iou_map, label_instances
@@ -75,7 +82,7 @@ class GanTrainer(LightningModule):
 
         # Train generator
         if optimizer_idx == 0:
-            if not (np.random.choice((True, False), p=(0.2, 0.8))):
+            if not (np.random.choice((True, False), size=1, p=(0.2, 0.8))):
                 return None
             generated_masks = self.generator(imgs)
             binary_generated_mask = generated_masks # self.binarize_mask(generated_masks)
@@ -109,11 +116,11 @@ class GanTrainer(LightningModule):
     def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
         imgs, real_masks = batch
         generated_masks = self.generator(imgs)
-        binary_generated_masks = self.binarize_mask(generated_masks).cpu().numpy()
+        binary_generated_masks = tensorToCupy(self.binarize_mask(generated_masks))
         generated_instances = label_instances(binary_generated_masks)
         combined_instance_masks = self.combine_instances(generated_instances, generated_masks)
-        iou_score = iou_map(list(combined_instance_masks), list(real_masks.cpu().numpy()))
-        self.log_dict({'val_iou': iou_score}, prog_bar=True)
+        iou_score = iou_map(list(combined_instance_masks), list(tensorToCupy(real_masks)))
+        self.log_dict({'val_iou': iou_score.tolist()}, prog_bar=True)
     
     def combine_instances(self, instance_masks: np.ndarray, logits: torch.Tensor) -> np.ndarray:
         """Combines a batch of instances of different cell-types into one layer of instances.
@@ -134,7 +141,7 @@ class GanTrainer(LightningModule):
                 instance_masks[batch_index][index] += max_layers[index]
 
         for batch_index, batch in enumerate(logits):
-            maximum = torch.argmax(batch, dim=0).cpu().numpy()
+            maximum = tensorToCupy(torch.argmax(batch, dim=0))
             combined_instances[batch_index] = np.take_along_axis(instance_masks[batch_index], np.array([maximum]), axis=0)
         return combined_instances
 
@@ -145,6 +152,6 @@ class GanTrainer(LightningModule):
         X, y = self.data_module.train_dataloader().dataset[0]
         X = X.type_as(self.discriminator.net[2].weight)
         sample_imgs = self.generator(X.unsqueeze_(dim=0))
-        grid = torchvision.utils.make_grid([torch.tensor(gray2rgb(X.squeeze_(dim=0).cpu()[0])).permute(2, 0, 1), sample_imgs.squeeze_(dim=0).cpu(), y.cpu()], nrow=3)
+        grid = torchvision.utils.make_grid([cupyToTensor(gray2rgb(tensorToCupy(X.squeeze_(dim=0)[0]))).permute(2, 0, 1).cpu(), sample_imgs.squeeze_(dim=0).cpu(), y.cpu()], nrow=3)
         self.logger.experiment.add_image("generated_images", grid, self.current_epoch)
 

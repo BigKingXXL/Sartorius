@@ -3,16 +3,16 @@ https://www.kaggle.com/theoviel/competition-metric-map-iou/notebook
 LICENSE: Apache 2
 """
 
-import numpy as np
-from scipy.ndimage.measurements import label
+import cupy as cp
+from cupyx.scipy.ndimage.measurements import label
 
-def label_instances(input: np.ndarray) -> np.ndarray:
+def label_instances(input: cp.ndarray) -> cp.ndarray:
     input_short = input
     if len(input.shape) > 3:
         input_short = input.reshape(-1, input.shape[2], input.shape[3])
-    result = np.zeros_like(input_short)
+    result = cp.zeros_like(input_short)
     for layer in range(input_short.shape[0]):
-        result[layer, :, :], _ = label(input_short[layer, :, :].reshape((input_short.shape[1], input_short.shape[2])).astype(np.int8))
+        result[layer, :, :], _ = label(input_short[layer, :, :].reshape((input_short.shape[1], input_short.shape[2])).astype(cp.int8))
     return result.reshape(input.shape)
 
 def compute_iou(labels, y_pred):
@@ -27,19 +27,19 @@ def compute_iou(labels, y_pred):
         np array: IoU matrix, of size true_objects x pred_objects.
     """
 
-    true_objects = len(np.unique(labels))
-    pred_objects = len(np.unique(y_pred))
+    true_objects = len(cp.unique(labels))
+    pred_objects = len(cp.unique(y_pred))
 
     # Compute intersection between all objects
-    intersection = np.histogram2d(
+    intersection = cp.histogram2d(
         labels.flatten(), y_pred.flatten(), bins=(true_objects, pred_objects)
     )[0]
 
     # Compute areas (needed for finding the union between all objects)
-    area_true = np.histogram(labels, bins=true_objects)[0]
-    area_pred = np.histogram(y_pred, bins=pred_objects)[0]
-    area_true = np.expand_dims(area_true, -1)
-    area_pred = np.expand_dims(area_pred, 0)
+    area_true = cp.histogram(labels, bins=true_objects)[0]
+    area_pred = cp.histogram(y_pred, bins=pred_objects)[0]
+    area_true = cp.expand_dims(area_true, -1)
+    area_pred = cp.expand_dims(area_pred, 0)
 
     # Compute union
     union = area_true + area_pred - intersection
@@ -54,7 +54,7 @@ def precision_at(threshold, iou):
 
     Args:
         threshold (float): Threshold.
-        iou (np array [n_truths x n_preds]): IoU matrix.
+        iou (cp array [n_truths x n_preds]): IoU matrix.
 
     Returns:
         int: Number of true positives,
@@ -62,13 +62,13 @@ def precision_at(threshold, iou):
         int: Number of false negatives.
     """
     matches = iou > threshold
-    true_positives = np.sum(matches, axis=1) >= 1  # Correct objects
-    false_negatives = np.sum(matches, axis=1) == 0  # Missed objects
-    false_positives = np.sum(matches, axis=0) == 0  # Extra objects
+    true_positives = cp.sum(matches, axis=1) >= 1  # Correct objects
+    false_negatives = cp.sum(matches, axis=1) == 0  # Missed objects
+    false_positives = cp.sum(matches, axis=0) == 0  # Extra objects
     tp, fp, fn = (
-        np.sum(true_positives),
-        np.sum(false_positives),
-        np.sum(false_negatives),
+        cp.sum(true_positives),
+        cp.sum(false_positives),
+        cp.sum(false_negatives),
     )
     return tp, fp, fn
 
@@ -94,7 +94,7 @@ def iou_map(truths, preds, verbose=0):
         print("Thresh\tTP\tFP\tFN\tPrec.")
 
     prec = []
-    for t in np.arange(0.5, 1.0, 0.05):
+    for t in cp.arange(0.5, 1.0, 0.05):
         tps, fps, fns = 0, 0, 0
         for iou in ious:
             tp, fp, fn = precision_at(t, iou)
@@ -109,13 +109,13 @@ def iou_map(truths, preds, verbose=0):
             print("{:1.3f}\t{}\t{}\t{}\t{:1.3f}".format(t, tps, fps, fns, p))
 
     if verbose:
-        print("AP\t-\t-\t-\t{:1.3f}".format(np.mean(prec)))
+        print("AP\t-\t-\t-\t{:1.3f}".format(cp.mean(prec)))
 
-    return np.mean(prec)
+    return cp.mean(cp.array(prec))
 
-def split_components(array: np.ndarray):
-    unique_el = np.unique(array)
+def split_components(array: cp.ndarray):
+    unique_el = cp.unique(array)
     result = []
     for el in unique_el:
-        result.append(np.where(array == el, array, 0))
+        result.append(cp.where(array == el, array, 0))
     return result

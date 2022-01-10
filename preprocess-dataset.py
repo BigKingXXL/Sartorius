@@ -20,8 +20,8 @@ def convert_to_masks(path):
         picture_id = picture_group.iloc[0]['id']
         picture_size = picture_group.iloc[0]['width'] * picture_group.iloc[0]['height']
 
-        cell_array = np.zeros(picture_size, dtype=np.int8)
         for index, cell in picture_group.iterrows():
+            cell_array = np.zeros(picture_size, dtype=np.int8)
             annotation = [int(val) for val in cell['annotation'].split(' ')]
             cell_type = cell['cell_type']
 
