@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script download the competition data aswell as a coco version of it and puts everything into the right directories.
 export PWD=$(pwd)
 set -e
 trap "cd $PWD; exit" INT
