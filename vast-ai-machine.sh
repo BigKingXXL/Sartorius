@@ -1,10 +1,12 @@
 #!/bin/bash
+# Bigger models like the ones we used from mmdtection or bigger versions of detectron2 needed more VRAM than our local machines or google colab could offer.
+# Therefore we rented VMs from vast.ai multiple times. In order to make the setup faster and easier for us we created this startup script.
 set -e
 apt update
 apt install git unzip gcc nano ffmpeg libsm6 libxext6 g++ -y
 pip install pytorch-lightning pandas scipy scikit-learn scikit-image tiffile kaggle  opencv-python
-#mkdir ~/.kaggle -p
-#nano ~/.kaggle/kaggle.json
+mkdir ~/.kaggle -p
+nano ~/.kaggle/kaggle.json
 git clone https://max-3l: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@github.com/BigKingXXL/Sartorius.git
 cd Sartorius
 git checkout pytorch-lightning
