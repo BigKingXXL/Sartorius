@@ -16,7 +16,11 @@ To preprocess the data run `./preprocess-data.py`. It will transform the run-len
 
 ## What we did
 
+In the next
+
 ### Detectron2 GAN
+
+Our first idea was to use the predictions of a Detectron2 instance in a GAN to use the unlabled data to train. But as we used bitmasks as inputs and detectron2's bitmask output has no gradient we did not follow this approach, as it would involve rewriting a big part of detectrons code.
 
 ### UNET-R GAN (MONAI)
 
@@ -30,14 +34,10 @@ The code of the UNET-R GAN can be found in the `bigkingxxl` directory.
 
 ### mmdetection SWIN Transformer
 
-### Detetcron2 without pretraining
+### Detectron2
 
-### Detectron2 with pretraining
-
-### Detectron2 ensemble classifier
-
-### Detectron2 optimal threshold finding
-
-### Detectron2 minimal cell size
+We tried different ways to use and train detectron2. With and without pretraining, different architectures and three detectron instances as an ensemble classifier. We also computed the minimal cell size to filter out too small predictions and used a greedy algorithm to optimize the thresholds. The notebooks for training and inference can be found in the `detectron/` directory.
 
 ### Cellpose
+
+We converted our computed masks to tiff files and used them to train a CellPose model that is pretrained on nuclei images. More explanations can be found in the notebook `Cellpose.ipynb`.
