@@ -30,6 +30,8 @@ REAL_LABEL = 1
 FAKE_LABEL = 0
 
 class GanTrainer(LightningModule):
+    """A module that defines the training of a UNET-R with a basic CNN using a Generative Adverserial Network
+    approach."""
     def __init__(self,
         generator: nn.Module,
         discriminator: nn.Module,

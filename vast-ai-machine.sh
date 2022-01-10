@@ -7,7 +7,7 @@ apt install git unzip gcc nano ffmpeg libsm6 libxext6 g++ -y
 pip install pytorch-lightning pandas scipy scikit-learn scikit-image tiffile kaggle  opencv-python
 mkdir ~/.kaggle -p
 nano ~/.kaggle/kaggle.json
-git clone https://max-3l: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@github.com/BigKingXXL/Sartorius.git
+git clone https://max-3l:<secret>@github.com/BigKingXXL/Sartorius.git
 cd Sartorius
 git checkout pytorch-lightning
 /bin/bash ./get-data.sh

@@ -1,4 +1,5 @@
 """
+Taken from:
 https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
 LICENSE: APACHE 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 """

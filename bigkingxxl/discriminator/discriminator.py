@@ -5,6 +5,11 @@ from typing import Tuple
 
 # angelehnt an https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/361f8b00d671b66db752e66493b630be8bc7d67b/models/networks.py#L538
 class Discriminator(nn.Module):
+    """
+    A basic CNN to be used as a descriminator in a GAN.
+    It adapts the model from:
+    https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/361f8b00d671b66db752e66493b630be8bc7d67b/models/networks.py#L538
+    """
     def __init__(self, sizes = (4, 512, 704)) -> None:
         super(Discriminator, self).__init__()
         self.net = self.build_net(sizes)

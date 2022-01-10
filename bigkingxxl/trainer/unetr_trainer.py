@@ -20,6 +20,10 @@ REAL_LABEL = 1
 FAKE_LABEL = 0
 
 class UnetrTrainer(LightningModule):
+    """
+    A module that defines the training process of the UNET-R. It uses segmentation on a
+    per cell layer and detects instances by finding connected components in the predictions.
+    """
     def __init__(self,
         data_module: LightningDataModule,
         lr: float,
@@ -71,11 +75,13 @@ class UnetrTrainer(LightningModule):
         return { "monitor": "val_iou", "lr_scheduler": lr_scheduler, "optimizer": optimizer }
     
     def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
+        """Computes metrics on the validation dataset and logs them."""
         imgs, real_masks = batch
         generated_masks = self.generator(imgs)
         binary_generated_masks = tensorToCupy(self.binarize_mask(generated_masks))
         generated_instances = label_instances(binary_generated_masks)
         combined_instance_masks = self.combine_instances(generated_instances, generated_masks)
+        # Compute the challenge metric
         iou_score = iou_map(list(combined_instance_masks), tensorToCupy(real_masks))
         self.log_dict({'val_iou': iou_score.tolist()} , prog_bar=True)
     

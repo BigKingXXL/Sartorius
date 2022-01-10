@@ -1,3 +1,5 @@
+"""Defines different versions of the sartorius dataset."""
+
 from typing import Tuple
 import torch
 from torch.utils.data import Dataset

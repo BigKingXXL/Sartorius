@@ -1,12 +1,8 @@
-"""
-https://www.kaggle.com/theoviel/competition-metric-map-iou/notebook
-LICENSE: Apache 2
-"""
-
 import cupy as cp
 from cupyx.scipy.ndimage.measurements import label
 
 def label_instances(input: cp.ndarray) -> cp.ndarray:
+    """"Labels connected components with an running index per layer."""
     input_short = input
     if len(input.shape) > 3:
         input_short = input.reshape(-1, input.shape[2], input.shape[3])
@@ -14,6 +10,12 @@ def label_instances(input: cp.ndarray) -> cp.ndarray:
     for layer in range(input_short.shape[0]):
         result[layer, :, :], _ = label(input_short[layer, :, :].reshape((input_short.shape[1], input_short.shape[2])).astype(cp.int8))
     return result.reshape(input.shape)
+
+"""
+The following functions are taken from
+https://www.kaggle.com/theoviel/competition-metric-map-iou/notebook
+LICENSE: Apache 2
+"""
 
 def compute_iou(labels, y_pred):
     """

@@ -1,3 +1,5 @@
+"""Defines dataloaders for use with the PytorchLightning framework. It defines
+training and validation datasets."""
 from typing import Optional
 from pytorch_lightning.core.datamodule import LightningDataModule
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
