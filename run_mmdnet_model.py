@@ -2,7 +2,7 @@ from mmdet.apis import init_detector, inference_detector
 import argparse
 import glob
 import os
-import numpy
+import cupy as numpy
 import pandas as pd
 
 def compute_confidence(current_file, results):
