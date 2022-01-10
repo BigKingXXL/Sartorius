@@ -1,23 +1,19 @@
-from glob import glob
+"""
+This file computes the minimum pixel size in the official annotations for each cell type.
+It is used to filter out too small predictions that are not reasonable.
+
+For explanation of the convert_to_mask function look at `preprocess_dataset.py`.
+"""
 import pandas as pd
 import numpy as np
-import pickle
-import torch
-import os
-import tiffile
-from PIL import Image
 import logging
 
-
 cell_types = ['astro', 'cort', 'shsy5y']
-
 def convert_to_masks(path):
     with open(path) as read_handle:
         train_data = pd.read_csv(read_handle)
         cells = {}
         cellSize = {}
-
-        # picture_id = train_data.iloc[0]['id']
         picture_size = train_data.iloc[0]['width'] * train_data.iloc[0]['height']
         for index, cell in train_data.iterrows():
             cell_array = np.zeros(picture_size, dtype=np.int8)
