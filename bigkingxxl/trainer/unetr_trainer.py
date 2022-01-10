@@ -77,8 +77,7 @@ class UnetrTrainer(LightningModule):
         generated_instances = label_instances(binary_generated_masks)
         combined_instance_masks = self.combine_instances(generated_instances, generated_masks)
         iou_score = iou_map(list(combined_instance_masks), tensorToCupy(real_masks))
-        val_loss = self.adverserial_loss(real_masks, generated_masks)
-        self.log_dict({'val_iou': iou_score.tolist(), "val_loss": val_loss} , prog_bar=True)
+        self.log_dict({'val_iou': iou_score.tolist()} , prog_bar=True)
     
     def combine_instances(self, instance_masks: cp.ndarray, logits: torch.Tensor) -> cp.ndarray:
         """Combines a batch of instances of different cell-types into one layer of instances.
